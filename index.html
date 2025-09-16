@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Plank Timer</title>
+  <style>
+    body {
+      margin:0; height:100vh; display:flex; flex-direction:column;
+      justify-content:center; align-items:center;
+      background:#111; color:#fff; font-family:sans-serif;
+    }
+    h1 { font-size:64px; margin:20px; }
+    button {
+      font-size:20px; padding:10px 20px; margin-top:20px;
+      background:#0a84ff; color:#fff; border:none; border-radius:10px;
+    }
+  </style>
+</head>
+<body>
+  <h1 id="timer">0:00</h1>
+  <button id="start">Start</button>
+  <div id="status"></div>
+
+  <script>
+    function beep(ms=150,f=880){
+      try{
+        const AC=window.AudioContext||window.webkitAudioContext;
+        const ac=new AC(); const o=ac.createOscillator();
+        const g=ac.createGain(); o.frequency.value=f; g.gain.value=0.05;
+        o.connect(g); g.connect(ac.destination);
+        o.start(); o.stop(ac.currentTime+ms/1000);
+        setTimeout(()=>ac.close(),ms+50);
+      }catch(e){}
+    }
+
+    const t=document.getElementById("timer");
+    const s=document.getElementById("status");
+    const btn=document.getElementById("start");
+
+    btn.onclick=()=>{
+      let total=60; // секунд по умолчанию
+      let left=total;
+      s.textContent="Hold";
+      beep();
+      const int=setInterval(()=>{
+        left--; 
+        let m=Math.floor(left/60), sec=(left%60).toString().padStart(2,"0");
+        t.textContent=`${m}:${sec}`;
+        if(left%10===0) beep(200,1200);
+        if(left<=0){
+          clearInterval(int);
+          s.textContent="Well done!";
+          beep(300,600);
+        }
+      },1000);
+    };
+  </script>
+</body>
+</html>
