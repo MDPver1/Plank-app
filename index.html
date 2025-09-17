@@ -1,60 +1,121 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Plank Timer</title>
-  <style>
-    body {
-      margin:0; height:100vh; display:flex; flex-direction:column;
-      justify-content:center; align-items:center;
-      background:#111; color:#fff; font-family:sans-serif;
-    }
-    h1 { font-size:64px; margin:20px; }
-    button {
-      font-size:20px; padding:10px 20px; margin-top:20px;
-      background:#0a84ff; color:#fff; border:none; border-radius:10px;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Plank Timer</title>
+<style>
+  :root{--bg:#111;--fg:#fff;--accent:#0a84ff}
+  *{box-sizing:border-box}
+  body{
+    margin:0;height:100vh;background:var(--bg);color:var(--fg);
+    display:flex;flex-direction:column;justify-content:center;align-items:center;
+    font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Arial,sans-serif;
+    gap:24px
+  }
+  /* Большой заголовок сверху для Well done */
+  #msg{
+    position:fixed;top:24px;left:0;right:0;text-align:center;
+    font-weight:700;font-size:72px;line-height:1;pointer-events:none;
+    opacity:.0;transition:.25s ease
+  }
+  #msg.show{opacity:1}
+  #timer{font-size:96px;line-height:1;margin:0}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+  input[type=number]{
+    width:110px;padding:10px 12px;border-radius:12px;border:1px solid #333;
+    background:#1e1e1e;color:#fff;font-size:18px;text-align:center
+  }
+  button{
+    border:0;border-radius:12px;background:var(--accent);color:#fff;
+    font-size:18px;padding:12px 18px
+  }
+  .chip{
+    background:#1e1e1e;border:1px solid #333;color:#fff
+  }
+  .hint{opacity:.7}
+</style>
 </head>
 <body>
+  <div id="msg">Well done!</div>
+
   <h1 id="timer">0:00</h1>
-  <button id="start">Start</button>
-  <div id="status"></div>
 
-  <script>
-    function beep(ms=150,f=880){
-      try{
-        const AC=window.AudioContext||window.webkitAudioContext;
-        const ac=new AC(); const o=ac.createOscillator();
-        const g=ac.createGain(); o.frequency.value=f; g.gain.value=0.05;
-        o.connect(g); g.connect(ac.destination);
-        o.start(); o.stop(ac.currentTime+ms/1000);
-        setTimeout(()=>ac.close(),ms+50);
-      }catch(e){}
+  <div class="controls">
+    <input id="secs" type="number" min="10" step="5" value="60">
+    <button class="chip" data-s="30">30s</button>
+    <button class="chip" data-s="60">60s</button>
+    <button class="chip" data-s="90">90s</button>
+    <button id="start">Start</button>
+  </div>
+
+  <div id="status" class="hint"></div>
+
+<script>
+function beep(ms=150,f=880,vol=0.06){
+  try{
+    const AC=window.AudioContext||window.webkitAudioContext;
+    const ac=new AC(); const o=ac.createOscillator(); const g=ac.createGain();
+    o.type="sine"; o.frequency.value=f; g.gain.value=vol;
+    o.connect(g); g.connect(ac.destination);
+    o.start(); o.stop(ac.currentTime+ms/1000);
+    setTimeout(()=>ac.close(), ms+50);
+  }catch(e){}
+}
+
+const t = document.getElementById('timer');
+const s = document.getElementById('status');
+const msg = document.getElementById('msg');
+const inp = document.getElementById('secs');
+const startBtn = document.getElementById('start');
+document.querySelectorAll('.chip').forEach(b=>b.onclick=()=>{inp.value=b.dataset.s});
+
+let running=false, int=null;
+
+function fmt(n){
+  n=Math.max(0,n);
+  const m=Math.floor(n/60);
+  const ss=(n%60).toString().padStart(2,'0');
+  return `${m}:${ss}`;
+}
+
+startBtn.onclick=()=>{
+  if(running) return;
+  let total = parseInt(inp.value,10)||60;
+  if(total<10) total=10;
+  run(total);
+};
+
+function run(total){
+  running=true;
+  msg.classList.remove('show');
+  let left = total, tick=0;
+  s.textContent='Hold';
+  t.textContent = fmt(left);
+  beep(180,880);
+
+  int = setInterval(()=>{
+    left--; tick++;
+    t.textContent = fmt(left);
+    if(left<=0){
+      clearInterval(int);
+      finish();
+      return;
     }
+    if(tick%10===0) beep(160,1200); // каждые 10 сек
+  },1000);
+}
 
-    const t=document.getElementById("timer");
-    const s=document.getElementById("status");
-    const btn=document.getElementById("start");
-
-    btn.onclick=()=>{
-      let total=60; // секунд по умолчанию
-      let left=total;
-      s.textContent="Hold";
-      beep();
-      const int=setInterval(()=>{
-        left--; 
-        let m=Math.floor(left/60), sec=(left%60).toString().padStart(2,"0");
-        t.textContent=`${m}:${sec}`;
-        if(left%10===0) beep(200,1200);
-        if(left<=0){
-          clearInterval(int);
-          s.textContent="Well done!";
-          beep(300,600);
-        }
-      },1000);
-    };
-  </script>
+function finish(){
+  beep(220,880);
+  setTimeout(()=>beep(220,880),250);
+  setTimeout(()=>beep(300,660),500);
+  t.textContent='0:00';
+  s.textContent='';
+  msg.textContent='Well done!';
+  msg.classList.add('show');   // показать большой заголовок сверху
+  running=false;
+}
+</script>
 </body>
 </html>
