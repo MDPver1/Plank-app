@@ -1,14 +1,14 @@
 <!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Plank v2</title>
+<title>Plank v3</title>
 <style>
-:root{--bg:#0b0b0b;--txt:#fff;--accent:#0a84ff;--danger:#ff453a;--ok:#23c7a4;--ring:#ff3b30;--ringW:18px}
-*{box-sizing:border-box} html,body{height:100%;margin:0;background:var(--bg);color:var(--txt);
+:root{--bg:#0b0b0b;--txt:#fff;--accent:#0a84ff;--danger:#ff453a;--ok:#23c7a4;--ring:#ff3b30;--ringW:14px}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--txt);
 font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Arial,sans-serif}
 .app{position:relative;min-height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden}
-.counter{position:absolute;top:50%;left:50%;transform:translate(-50%,-55%);font-weight:900;font-size:22vw}
+.counter{position:absolute;top:50%;left:50%;transform:translate(-50%,-55%);font-weight:900;font-size:22vw;line-height:1}
 @media (min-aspect-ratio:9/16){.counter{font-size:18vh}}
-.controls{position:absolute;bottom:calc(env(safe-area-inset-bottom,0)+92px);left:50%;transform:translateX(-50%);
-display:flex;gap:18vw}
+.controls{position:absolute;bottom:calc(env(safe-area-inset-bottom,0)+92px);left:50%;transform:translateX(-50%);display:flex;gap:18vw}
 .sidebtn{width:72px;height:72px;border-radius:20px;border:3px solid #fff;display:flex;align-items:center;justify-content:center}
 .sidebtn span{font-size:44px;margin-top:-2px}
 .action{position:absolute;bottom:calc(env(safe-area-inset-bottom,0)+26px);left:50%;transform:translateX(-50%);
@@ -17,35 +17,22 @@ font-size:22px;font-weight:700;color:#fff;background:var(--accent)}
 .action.stop{background:var(--danger)} .action.again{background:var(--ok)}
 .hidden{display:none}
 
+/* кольцо */
 .wrap{position:absolute;inset:18px;top:calc(18px + env(safe-area-inset-top,0))}
 svg{width:100%;height:100%}
-.ring{fill:none;stroke:var(--ring);stroke-width:var(--ringW);stroke-linecap:round;transition:stroke-dasharray .2s linear}
+.ring{fill:none;stroke:var(--ring);stroke-width:var(--ringW);stroke-linecap:round;transition:stroke-dasharray .16s linear}
+
+/* заставка Ready/Set/Go — всегда поверх */
+.pre{position:absolute;inset:0;display:grid;place-items:center;background:var(--bg);z-index:5}
+.pre h1{margin:0;font-weight:900;color:#fff;font-size:20vw}
+@media (min-aspect-ratio:9/16){.pre h1{font-size:18vh}}
 
 .done{position:absolute;top:50%;left:50%;transform:translate(-50%,-55%);font-weight:900;font-size:14vw;text-align:center}
-
-/* Прелоадер Ready → Set → Go через CSS, без JS-таймеров */
-.pre{position:absolute;inset:0;display:grid;place-items:center;background:var(--bg);z-index:5}
-.pre h1{margin:0;font-weight:900;color:#fff;font-size:20vw;animation:pre 2.2s steps(1,end) forwards}
-@media (min-aspect-ratio:9/16){.pre h1{font-size:18vh}}
-@keyframes pre{
-  0%{content:normal} 0%,36%{ }     /* Ready */
-  36.1%,72%{ }                     /* Set   */
-  72.1%,99.9%{ }                   /* Go!   */
-  100%{opacity:0;visibility:hidden}
-}
-.pre h1::after{content:"Ready"}
-.pre h1{--t:0}
-.pre h1{animation-name:pre}
-.pre h1{animation-timing-function:linear}
-.pre h1{animation-duration:2.2s}
-.pre h1{animation-fill-mode:forwards}
-.pre h1{position:relative}
-.pre h1[data-step="1"]::after{content:"Ready"}
-.pre h1[data-step="2"]::after{content:"Set"}
-.pre h1[data-step="3"]::after{content:"Go!"}
 </style></head><body>
 <div class="app" id="app">
-  <div class="wrap hidden" id="ringWrap"><svg viewBox="0 0 100 100"><circle id="ring" class="ring" cx="50" cy="50" r="45"/></svg></div>
+  <div class="wrap hidden" id="ringWrap"><svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+    <circle id="ring" class="ring" cx="50" cy="50" r="45"/></svg></div>
+
   <div id="num" class="counter">30</div>
 
   <div id="controls" class="controls">
@@ -57,61 +44,83 @@ svg{width:100%;height:100%}
   <button id="btnStop"  class="action stop hidden">Stop</button>
   <button id="btnAgain" class="action again hidden">Again</button>
 
-  <div id="pre" class="pre hidden"><h1 id="preTxt" data-step="1"></h1></div>
+  <div id="pre" class="pre hidden"><h1 id="preTxt">Ready</h1></div>
   <div id="done" class="done hidden">Well done!</div>
 </div>
 
 <script>
 (()=> {
   // элементы
-  const num=document.getElementById('num');
-  const ring=document.getElementById('ring'), ringWrap=document.getElementById('ringWrap');
-  const controls=document.getElementById('controls');
-  const btnStart=document.getElementById('btnStart'), btnStop=document.getElementById('btnStop'), btnAgain=document.getElementById('btnAgain');
-  const pre=document.getElementById('pre'), preTxt=document.getElementById('preTxt');
-  const done=document.getElementById('done');
+  const num = document.getElementById('num');
+  const ring = document.getElementById('ring');
+  const ringWrap = document.getElementById('ringWrap');
+  const controls = document.getElementById('controls');
+  const btnStart = document.getElementById('btnStart');
+  const btnStop  = document.getElementById('btnStop');
+  const btnAgain = document.getElementById('btnAgain');
+  const pre = document.getElementById('pre');
+  const preTxt = document.getElementById('preTxt');
+  const done = document.getElementById('done');
 
   // состояние
-  let base=30, left=base, raf=null;
-  const r=45, C=2*Math.PI*r; ring.setAttribute('stroke-dasharray',`${C} 0`);
-  const show=e=>e.classList.remove('hidden'), hide=e=>e.classList.add('hidden');
-  const draw=v=>num.textContent=String(v); draw(base);
+  let base = 30, left = base, raf = null;
+  const r = 45, C = 2*Math.PI*r;
+  const show = el => el.classList.remove('hidden');
+  const hide = el => el.classList.add('hidden');
+  const draw = v => { num.textContent = String(v); };
+
+  // начальные значения
+  ring.setAttribute('stroke-dasharray', `${C} 0`);
+  draw(base);
 
   // звук
-  function beep(ms=120,f=880,v=0.05){try{const AC=window.AudioContext||window.webkitAudioContext;const ac=new AC();
-  const o=ac.createOscillator(), g=ac.createGain();o.frequency.value=f;g.gain.value=v;o.connect(g);g.connect(ac.destination);
-  o.start();o.stop(ac.currentTime+ms/1000);setTimeout(()=>ac.close(),ms+60);}catch(e){}}
+  function beep(ms=120,f=880,v=0.05){try{
+    const AC = window.AudioContext || window.webkitAudioContext;
+    const ac = new AC();
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.frequency.value=f; g.gain.value=v; o.connect(g); g.connect(ac.destination);
+    o.start(); o.stop(ac.currentTime + ms/1000); setTimeout(()=>ac.close(), ms+60);
+  }catch(e){}}
 
-  // +/- до старта
-  document.getElementById('minus').onclick=()=>{ if(btnStart.classList.contains('hidden'))return; base=Math.max(10,base-10); draw(base); };
-  document.getElementById('plus').onclick =()=>{ if(btnStart.classList.contains('hidden'))return; base=Math.min(3600,base+10); draw(base); };
+  // +/- только до старта
+  document.getElementById('minus').onclick=()=>{ if(!btnStart.classList.contains('hidden')) { base=Math.max(10, base-10); draw(base); } };
+  document.getElementById('plus').onclick =()=>{ if(!btnStart.classList.contains('hidden')) { base=Math.min(3600, base+10); draw(base); } };
 
-  // CSS-прелоадер с «готовыми» шагами и событием конца анимации
+  // безопасный запуск заставки
   function runPreThenStart(){
-    preTxt.dataset.step="1"; show(pre);
-    // Перекидываем шаги вручную чтобы текст точно менялся в Safari
-    setTimeout(()=>{preTxt.dataset.step="2"},800);
-    setTimeout(()=>{preTxt.dataset.step="3"},1600);
-    setTimeout(()=>{hide(pre); startTimer();},2200);
+    preTxt.textContent = 'Ready'; show(pre);
+    setTimeout(()=>preTxt.textContent='Set', 800);
+    setTimeout(()=>preTxt.textContent='Go!', 1600);
+    // основной запуск
+    setTimeout(()=>{ hide(pre); startTimer(); }, 2200);
+    // страховка: если по какой-то причине не стартанули — стартуем
+    setTimeout(()=>{ if (btnStop.classList.contains('hidden')) { hide(pre); startTimer(); } }, 2600);
   }
 
-  function setRatio(ratio){ ring.setAttribute('stroke-dasharray',`${C*ratio} ${C*(1-ratio)}`); }
+  function setRatio(ratio){
+    // ratio 1 -> полный круг; 0 -> пусто
+    const a = Math.max(0, Math.min(1, ratio));
+    ring.setAttribute('stroke-dasharray', `${C*a} ${C*(1-a)}`);
+  }
 
   function startTimer(){
-    left=base; let prev10=left;
+    left = base; draw(left);
     hide(btnStart); show(btnStop); hide(done);
-    show(ringWrap); controls.style.display='none';
+    controls.style.display='none'; show(ringWrap);
+    setRatio(1);
 
-    let t0=performance.now();
-    const loop=(t)=>{
-      const elapsed=Math.min((t-t0)/1000,base);
-      left=Math.max(base-Math.floor(elapsed),0);
-      draw(left);
-      setRatio(Math.max(0,(base-elapsed)/base));
-      if(left>0 && left%10===0 && left!==prev10){prev10=left;beep();}
-      if(elapsed<base){raf=requestAnimationFrame(loop);}else{finish();}
+    let t0 = performance.now(), prev10 = left;
+
+    const loop = (t)=>{
+      const elapsed = Math.min((t - t0) / 1000, base);
+      const leftNow = Math.max(base - Math.floor(elapsed), 0);
+      if (leftNow !== left){ left = leftNow; draw(left); }
+      setRatio((base - elapsed)/base);
+      if (left>0 && left%10===0 && left!==prev10){ prev10 = left; beep(); }
+      if (elapsed < base){ raf = requestAnimationFrame(loop); }
+      else { finish(); }
     };
-    raf=requestAnimationFrame(loop);
+    raf = requestAnimationFrame(loop);
   }
 
   function finish(){
@@ -121,14 +130,14 @@ svg{width:100%;height:100%}
   }
 
   function reset(){
-    if(raf) cancelAnimationFrame(raf);
+    if (raf) cancelAnimationFrame(raf);
     show(btnStart); hide(btnStop); hide(btnAgain); hide(pre); hide(done);
     controls.style.display=''; hide(ringWrap); setRatio(1); draw(base);
   }
 
-  btnStart.onclick=()=>runPreThenStart();
-  btnStop.onclick =reset;
-  btnAgain.onclick=reset;
+  btnStart.onclick = runPreThenStart;
+  btnStop.onclick  = reset;
+  btnAgain.onclick = reset;
 })();
 </script>
 </body></html>
