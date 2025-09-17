@@ -23,35 +23,37 @@
     width:64px;height:64px;border-radius:14px;border:2px solid #fff;background:transparent;
     color:#fff;font-size:34px;display:flex;align-items:center;justify-content:center
   }
-  .controls{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
-  input[type=number]{
-    width:120px;padding:12px;border-radius:12px;border:1px solid #333;
-    background:#1e1e1e;color:#fff;font-size:18px;text-align:center
-  }
   button.solid{
     border:0;border-radius:12px;background:var(--accent);color:#fff;
     font-size:18px;padding:12px 18px
   }
   .hint{opacity:.7}
-  button:disabled, input:disabled{opacity:.6}
+  button:disabled{opacity:.6}
+
+  /* Оверлей прекаунта */
+  #overlay{
+    position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.85);z-index:10
+  }
+  #overlay.show{display:flex}
+  #preWord{font-size:96px;font-weight:800}
 </style>
 </head>
 <body>
   <div id="msg">Well done!</div>
 
-  <!-- Ряд: минус — таймер — плюс -->
+  <!-- Таймер: минус — число — плюс -->
   <div class="row">
     <button id="minus" class="btn-outline">−</button>
     <h1 id="timer">30</h1>
     <button id="plus" class="btn-outline">+</button>
   </div>
 
-  <div class="controls">
-    <input id="secs" type="number" min="10" step="5" value="30">
-    <button id="start" class="solid">Start</button>
-  </div>
-
+  <button id="start" class="solid">Start</button>
   <div id="status" class="hint"></div>
+
+  <!-- Оверлей прекаунта -->
+  <div id="overlay"><div id="preWord">Ready</div></div>
 
 <script>
 /* ---------- звук: общий AudioContext для iOS ---------- */
@@ -76,39 +78,56 @@ function beep(ms=150,f=880,vol=0.06){
 const t = document.getElementById('timer');
 const s = document.getElementById('status');
 const msg = document.getElementById('msg');
-const inp = document.getElementById('secs');
 const startBtn = document.getElementById('start');
 const minusBtn = document.getElementById('minus');
 const plusBtn  = document.getElementById('plus');
+const overlay  = document.getElementById('overlay');
+const preWord  = document.getElementById('preWord');
 
-let running=false, int=null;
+let running=false, int=null, currentSecs=30;
 
-/* синхронизация экрана и инпута */
+/* helpers */
 function setSeconds(v){
-  v=Math.max(10, v|0);
-  inp.value=v;
-  t.textContent=String(v);   // показываем просто число секунд
+  currentSecs=Math.max(10, v|0);
+  t.textContent=String(currentSecs);
 }
-setSeconds(parseInt(inp.value,10)||30);
+setSeconds(30);
 
-/* +/- меняют длительность планки, когда таймер НЕ идёт */
-minusBtn.onclick=()=>{ if(!running) setSeconds(parseInt(inp.value,10)-10); };
-plusBtn.onclick =()=>{ if(!running) setSeconds(parseInt(inp.value,10)+10); };
-
-inp.oninput=()=>{ if(!running) setSeconds(parseInt(inp.value,10)||30); };
+minusBtn.onclick = ()=>{ if(!running) setSeconds(currentSecs-10); };
+plusBtn.onclick  = ()=>{ if(!running) setSeconds(currentSecs+10); };
 
 startBtn.onclick=()=>{
   if(running) return;
   ensureAudio();
-  let total=parseInt(inp.value,10)||30;
-  if(total<10) total=10;
-  run(total);
+  prestart(()=>run(currentSecs));
 };
 
-function run(total){
+/* 3-секундный прекаунт: Ready → Set → Go */
+function prestart(done){
   running=true;
   toggleControls(true);
   msg.classList.remove('show');
+  s.textContent='';
+  overlay.classList.add('show');
+
+  const seq=[{w:'Ready!'},{w:'Set!'},{w:'Go!'}];
+  let i=0;
+
+  const step=()=>{
+    preWord.textContent=seq[i].w;
+    // лёгкий бип на каждое слово (не просили — можно убрать, но приятно)
+    beep(120, i<2?880:1200);
+    i++;
+    if(i<seq.length){ setTimeout(step,1000); }
+    else{
+      setTimeout(()=>{ overlay.classList.remove('show'); done(); },600);
+    }
+  };
+  step();
+}
+
+/* основной таймер (в секундах) */
+function run(total){
   s.textContent='Hold';
   setSeconds(total);
   beep(180,880); // стартовый
@@ -127,7 +146,7 @@ function run(total){
 }
 
 function finish(){
-  // три финальных сигнала
+  // финальная тройка
   beep(200,880);
   setTimeout(()=>beep(200,880),250);
   setTimeout(()=>beep(300,660),500);
@@ -140,7 +159,7 @@ function finish(){
 }
 
 function toggleControls(disabled){
-  inp.disabled=disabled;
+  startBtn.disabled=disabled;
   minusBtn.disabled=disabled;
   plusBtn.disabled=disabled;
 }
