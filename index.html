@@ -1,237 +1,169 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Plank Timer</title>
-<style>
-  :root{--bg:#0e0e0e;--fg:#fff;--accent:#0a84ff;--stop:#ff3b30}
-  *{box-sizing:border-box}
-  html,body{height:100%}
-  body{
-    margin:0;background:var(--bg);color:var(--fg);
-    font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Arial,sans-serif;
-    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px
-  }
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Plank Timer</title><style>
+:root{--bg:#0b0b0b;--fg:#fff;--muted:#999;--ring:#1a1a1a;--btn-size:82px;--ring-w:14px}
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Arial,sans-serif}
+.app{height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:24px}
+.row{display:flex;align-items:center;gap:28px}
+#value{font-weight:800;font-size:96px;letter-spacing:2px;text-align:center}
+.round{width:var(--btn-size);height:var(--btn-size);border-radius:999px;border:2px solid #fff;display:flex;align-items:center;justify-content:center;background:transparent;color:#fff;font-size:36px;line-height:1;user-select:none}
+.round:active{opacity:.8}
+.cta{min-width:var(--btn-size);height:var(--btn-size);border-radius:999px;border:2px solid #fff;display:flex;align-items:center;justify-content:center;padding:0 26px;font-weight:700}
+#startBtn{background:#0a84ff;color:#fff}
+#stopBtn{background:#ff3b30;color:#fff}
+#againBtn{background:#14b8a6;color:#fff}
+.hidden{display:none}
+.canvasWrap{position:relative;width:100%;max-width:520px;aspect-ratio:1}
+#ring{width:100%;height:100%;display:block}
+.centerNum{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:112px}
+#overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:var(--bg);z-index:10}
+#overlayText{font-size:72px;font-weight:900}
+@media (max-width:380px){#value{font-size:84px}.centerNum{font-size:96px}}
+</style></head><body>
+<div id="overlay"><div id="overlayText">Ready</div></div>
 
-  /* верхний баннер сообщений (во время работы скрыт) */
-  #msgTop{position:fixed;top:20px;left:0;right:0;text-align:center;
-    font-size:64px;font-weight:800;opacity:0;transition:.2s}
-  #msgTop.show{opacity:1}
-
-  /* стартовые элементы */
-  .row{display:flex;align-items:center;gap:22px}
-  #big{font-size:96px;min-width:160px;text-align:center;margin:0}
-  .btn-outline{
-    width:64px;height:64px;border-radius:14px;border:2px solid #fff;background:transparent;
-    color:#fff;font-size:34px;display:flex;align-items:center;justify-content:center
-  }
-  .btn{border:0;border-radius:12px;padding:12px 18px;font-size:18px;color:#fff;background:var(--accent)}
-  .btn.stop{background:var(--stop)}
-  .hidden{display:none !important}
-  .hint{opacity:.7}
-
-  /* сцена таймера с кругом */
-  #stage{width:min(92vw,92vh);aspect-ratio:1;border-radius:50%;
-    position:relative;display:none;align-items:center;justify-content:center}
-  #stage.show{display:flex}
-  .center{
-    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-    font-weight:900;font-size:min(22vw,22vh);line-height:1
-  }
-  .below{position:absolute;bottom:-64px}
-
-  svg{width:100%;height:100%;transform:rotate(-90deg)} /* чтобы 0° был сверху */
-  circle.track{fill:none;stroke:#242424;stroke-width:14}
-  circle.progress{fill:none;stroke-width:14;stroke-linecap:round}
-
-  /* тёмный оверлей прекаунта */
-  #overlay{
-    position:fixed;inset:0;background:#000;display:none;align-items:center;justify-content:center;z-index:10
-  }
-  #overlay.show{display:flex}
-  #pre{font-size:min(22vw,22vh);font-weight:900;color:#fff}
-</style>
-</head>
-<body>
-
-  <!-- стартовый экран -->
-  <div id="startUI">
-    <div class="row">
-      <button id="minus" class="btn-outline">−</button>
-      <h1 id="big">30</h1>
-      <button id="plus"  class="btn-outline">+</button>
-    </div>
-    <button id="startBtn" class="btn">Start</button>
-    <div id="hint" class="hint">Шаг ±10 сек</div>
+<div class="app" id="screenSetup">
+  <div class="row">
+    <button class="round" id="minus">−</button>
+    <div id="value">30</div>
+    <button class="round" id="plus">+</button>
   </div>
+  <button class="cta" id="startBtn">Start</button>
+</div>
 
-  <!-- сцена отсчёта: круг + число/сообщение -->
-  <div id="stage">
-    <svg viewBox="0 0 100 100">
-      <defs>
-        <!-- градиент по окружности: верх — переход -->
-        <linearGradient id="g" x1="0.5" y1="0" x2="0.5" y2="1">
-          <stop offset="0%"  stop-color="#ff3b30"/>  <!-- верх (красный) -->
-          <stop offset="100%" stop-color="#34c759"/> <!-- низ (зелёный) -->
-        </linearGradient>
-      </defs>
-      <!-- серый фон круга -->
-      <circle class="track" cx="50" cy="50" r="44"></circle>
-      <!-- прогресс -->
-      <circle id="arc" class="progress" cx="50" cy="50" r="44" stroke="url(#g)"></circle>
-    </svg>
-    <div id="center" class="center">30</div>
-    <button id="stopBtn" class="btn stop below">Stop</button>
+<div class="app hidden" id="screenRun">
+  <div class="canvasWrap">
+    <canvas id="ring"></canvas>
+    <div class="centerNum" id="centerNum">30</div>
   </div>
+  <button class="cta" id="stopBtn">Stop</button>
+</div>
 
-  <!-- сообщение «Well done!» сверху (используем и после финиша) -->
-  <div id="msgTop">Well done!</div>
-
-  <!-- финишный экран -->
-  <div id="finishUI" class="hidden">
-    <div id="finishText" style="font-size:96px;font-weight:900;text-align:center">Well done!</div>
-    <button id="againBtn" class="btn" style="margin-top:10px">Again</button>
-  </div>
-
-  <!-- оверлей прекаунта -->
-  <div id="overlay"><div id="pre">Ready!</div></div>
+<div class="app hidden" id="screenDone">
+  <div class="canvasWrap" style="opacity:0;pointer-events:none"><canvas></canvas></div>
+  <div class="centerNum" style="position:static;font-size:72px">Well done!</div>
+  <button class="cta" id="againBtn">Again</button>
+</div>
 
 <script>
-/* ---------- звук ---------- */
-let ac=null;
-function ensureAudio(){
-  try{
-    const AC=window.AudioContext||window.webkitAudioContext;
-    if(!ac) ac=new AC();
-    if(ac.state==='suspended') ac.resume();
-  }catch(e){}
-}
-function beep(ms=150,f=1100,vol=0.07){
-  if(!ac) return;
-  const o=ac.createOscillator(), g=ac.createGain();
-  o.type='sine'; o.frequency.value=f; g.gain.value=vol;
-  o.connect(g); g.connect(ac.destination);
-  const t0=ac.currentTime; o.start(t0); o.stop(t0+ms/1000);
-  setTimeout(()=>{o.disconnect();g.disconnect();},ms+50);
-}
+(()=>{"use strict";
+let total=30, left=30, running=false, tickInt=null, drawInt=null, startTs=0;
+const v=q("value"), minus=q("minus"), plus=q("plus"),
+      sSetup=q("screenSetup"), sRun=q("screenRun"), sDone=q("screenDone"),
+      startBtn=q("startBtn"), stopBtn=q("stopBtn"), againBtn=q("againBtn"),
+      centerNum=q("centerNum"), cv=q("ring"), overlay=q("overlay"), ovTxt=q("overlayText");
+function q(id){return document.getElementById(id)}
+function fmt(n){return n.toString()}
+function clamp(n,min,max){return Math.max(min,Math.min(max,n))}
+function setTotal(n){total=clamp(n,10,999); v.textContent=fmt(total)}
+minus.onclick=()=>setTotal(total-10);
+plus.onclick=()=>setTotal(total+10);
 
-/* ---------- элементы ---------- */
-const startUI = document.getElementById('startUI');
-const stage    = document.getElementById('stage');
-const finishUI = document.getElementById('finishUI');
-const center   = document.getElementById('center');
-const big      = document.getElementById('big');
-const minusBtn = document.getElementById('minus');
-const plusBtn  = document.getElementById('plus');
-const startBtn = document.getElementById('startBtn');
-const stopBtn  = document.getElementById('stopBtn');
-const againBtn = document.getElementById('againBtn');
-const msgTop   = document.getElementById('msgTop');
+function beep(ms=150,f=880,v=0.06){try{
+ const AC=window.AudioContext||window.webkitAudioContext; const ac=new AC();
+ const o=ac.createOscillator(), g=ac.createGain(); o.frequency.value=f; g.gain.value=v;
+ o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime+ms/1000);
+ setTimeout(()=>ac.close(),ms+60);}catch(e){}}
 
-const overlay  = document.getElementById('overlay');
-const pre      = document.getElementById('pre');
+async function awake(){try{ if('wakeLock' in navigator){window._wl=await navigator.wakeLock.request('screen')} }catch(e){}}
 
-const arc      = document.getElementById('arc');
-const R=44, C=2*Math.PI*R;        // окружность для штриха
-arc.style.strokeDasharray = String(C);
-arc.style.strokeDashoffset = "0";
-
-/* ---------- модель ---------- */
-let base=30;        // длительность по умолчанию
-let total=base;     // текущая длительность (сек)
-let left=0;         // осталось (сек)
-let tickInt=null;   // setInterval
-
-function updateBig(){ big.textContent = String(total); }
-updateBig();
-
-minusBtn.onclick=()=>{ if(tickInt) return; total=Math.max(10,total-10); updateBig(); };
-plusBtn.onclick =()=>{ if(tickInt) return; total+=10; updateBig();  };
-
-startBtn.onclick=()=>{ if(tickInt) return; ensureAudio(); precount(()=>start()); };
-stopBtn.onclick =resetAll;
-againBtn.onclick=resetAll;
-
-/* ---------- прекаунт 3с: полностью перекрывает экран ---------- */
-function precount(done){
-  // скрываем всё подложкой
-  overlay.classList.add('show');
-  const words=['Ready!','Set!','Go!'];
-  let i=0;
-  const step=()=>{
-    pre.textContent=words[i];
-    beep(120, i<2?950:1200);
-    i++;
-    if(i<words.length) setTimeout(step,1000);
-    else setTimeout(()=>{ overlay.classList.remove('show'); done(); },600);
-  };
-  step();
+function show(el){sSetup.classList.add("hidden");sRun.classList.add("hidden");sDone.classList.add("hidden");el.classList.remove("hidden")}
+function countBeepIfNeeded(){
+ const passed = total-left;
+ if(passed>0 && passed%10===0) beep(150,880,0.06);
 }
 
-/* ---------- запуск таймера и рендера круга ---------- */
-function start(){
-  // переключаем UI
-  startUI.classList.add('hidden');
-  finishUI.classList.add('hidden');
-  msgTop.classList.remove('show');
-  stage.classList.add('show');
+function drawRing(){
+ const d = Math.min(cv.clientWidth, cv.clientHeight);
+ cv.width=d; cv.height=d;
+ const ctx=cv.getContext("2d");
+ const cx=d/2, cy=d/2, r = d/2-28; // отступ, чтобы кнопки и кольцо не соприкасались
+ const w = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ring-w'))||14;
 
-  left=total;
-  renderCircle(1);                   // полный круг
-  renderCenter(left);
+ ctx.clearRect(0,0,d,d);
 
-  // тики
-  let tick=0;
-  tickInt=setInterval(()=>{
-    left--; tick++;
-    renderCenter(Math.max(left,0));
-    renderCircle(left/total);
-    if(left<=0){
-      clearInterval(tickInt); tickInt=null;
-      finish();
-      return;
-    }
-    if(tick%10===0) beep(150,1100);  // каждые 10 секунд
-  },1000);
+ // базовый серый тонкий след (еле заметный)
+ ctx.lineWidth=w; ctx.lineCap="round";
+ // НЕ рисуем базовый след по условию «после завершения не виден»
+
+ // оставшееся кольцо: начинаем с максимума красного (слева, π) и идём по часовой
+ // прогресс 0..1
+ const f = clamp((Date.now()-startTs)/1000/total,0,1);
+ const remain = 1 - f; if(remain<=0){return;} // ничего не рисуем в конце
+
+ const startA = Math.PI; // 180° (лево)
+ const span = Math.PI*2*remain;
+ const endA = startA + span;
+
+ // рисуем по частям, чтобы цвета разделялись жёстко ровно сверху (−90°, = -π/2)
+ const split = -Math.PI/2; // верх
+ // вспомогательная функция сегмента
+ function arcSeg(a1,a2,color){
+   const norm=(a)=>a; // углы уже в радианах
+   const aa1=norm(a1), aa2=norm(a2);
+   if(aa2<=aa1) return;
+   ctx.beginPath(); ctx.strokeStyle=color; ctx.arc(cx,cy,r,aa1,aa2,false); ctx.stroke();
+ }
+ // вычленим видимый интервал [startA, endA]
+ // он может переходить через split или нет. разобьём на куски по полукругам:
+ const R1=[Math.PI/2, 3*Math.PI/2]; // левая половина (красная) от 90° до 270°
+ const R2=[-Math.PI/2, Math.PI/2];  // правая половина (зелёная) от -90° до 90°
+ // нормализуем в возрастающую последовательность
+ let a1=startA, a2=endA;
+ if(a2> startA+Math.PI*2) a2=startA+Math.PI*2;
+
+ // функция пересечения отрезков по углам в диапазоне [base, base+2π)
+ function drawPart(a1,a2,range,color){
+   const [r1,r2]=range;
+   const s=Math.max(a1,r1), e=Math.min(a2,r2);
+   if(e>s+1e-4) arcSeg(s,e,color);
+ }
+
+ // рисуем отдельно пересечение с «красной» половиной и «зелёной»
+ drawPart(a1,a2,R1,"#ff453a");
+ drawPart(a1,a2,R2,"#34c759");
 }
 
-/* круг — уменьшаем длину штриха */
-function renderCircle(frac){
-  const clamped=Math.max(0,Math.min(1,frac));
-  arc.style.strokeDashoffset = String(C*(1-clamped));
+function startCountdownOverlay(cb){
+ overlay.style.display="flex";
+ const words=["Ready!","Set!","Go!"];
+ let i=0; ovTxt.textContent=words[i];
+ const t=setInterval(()=>{ i++; if(i<words.length){ ovTxt.textContent=words[i]; }
+   else{ clearInterval(t); overlay.style.display="none"; cb(); }
+ },1000);
 }
 
-/* что показывать внутри круга */
-function renderCenter(value){
-  center.textContent = String(value);
+function run(){
+ running=true; left=total; centerNum.textContent=fmt(left);
+ show(sRun); awake();
+ startTs=Date.now();
+ // визуалка
+ drawInt=setInterval(drawRing,33);
+ // тики
+ tickInt=setInterval(()=>{
+   left--; centerNum.textContent=fmt(left);
+   countBeepIfNeeded();
+   if(left<=0){ clearInterval(tickInt); clearInterval(drawInt);
+     // тройной бип
+     beep(160,880,0.06); setTimeout(()=>beep(160,880,0.06),220); setTimeout(()=>beep(160,880,0.06),440);
+     show(sDone);
+   }
+ },1000);
 }
 
-/* ---------- завершение ---------- */
-function finish(){
-  // тройной такой же бип
-  beep(150,1100); setTimeout(()=>beep(150,1100),220); setTimeout(()=>beep(150,1100),440);
+startBtn.onclick=async()=>{
+  // iOS аудио разблокируется кликом
+  startCountdownOverlay(()=>run());
+};
+stopBtn.onclick=()=>reset();
+againBtn.onclick=()=>reset();
 
-  // надпись сверху не нужна; всё в центре и кнопка Again внизу
-  center.textContent='Well done!';
-  stopBtn.classList.add('hidden');     // убираем stop
-  setTimeout(()=>{
-    stage.classList.remove('show');
-    finishUI.classList.remove('hidden');
-  },600);
+function reset(){
+  running=false;
+  clearInterval(tickInt); clearInterval(drawInt);
+  setTotal(total); // вернуть отображение
+  show(sSetup);
 }
 
-/* ---------- сброс к старту ---------- */
-function resetAll(){
-  if(tickInt){ clearInterval(tickInt); tickInt=null; }
-  total = base;
-  updateBig();
-  stage.classList.remove('show');
-  finishUI.classList.add('hidden');
-  stopBtn.classList.remove('hidden');
-  msgTop.classList.remove('show');
-  startUI.classList.remove('hidden');
-}
+setTotal(30);
+})();
 </script>
-</body>
-</html>
+</body></html>
