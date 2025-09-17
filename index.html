@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -12,119 +12,137 @@
     display:flex;flex-direction:column;justify-content:center;align-items:center;gap:24px;
     font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Arial,sans-serif
   }
-  /* Большой заголовок сверху */
   #msg{
     position:fixed;top:24px;left:0;right:0;text-align:center;
-    font-weight:800;font-size:96px;line-height:1;letter-spacing:.5px;
-    opacity:0;transition:.25s ease;pointer-events:none
+    font-weight:800;font-size:72px;line-height:1;opacity:0;transition:.25s;pointer-events:none
   }
   #msg.show{opacity:1}
-  #timer{font-size:96px;line-height:1;margin:0}
+  .row{display:flex;align-items:center;gap:22px}
+  #timer{font-size:96px;line-height:1;min-width:160px;text-align:center;margin:0}
+  .btn-outline{
+    width:64px;height:64px;border-radius:14px;border:2px solid #fff;background:transparent;
+    color:#fff;font-size:34px;display:flex;align-items:center;justify-content:center
+  }
   .controls{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
   input[type=number]{
     width:120px;padding:12px;border-radius:12px;border:1px solid #333;
     background:#1e1e1e;color:#fff;font-size:18px;text-align:center
   }
-  button{
+  button.solid{
     border:0;border-radius:12px;background:var(--accent);color:#fff;
     font-size:18px;padding:12px 18px
   }
   .hint{opacity:.7}
+  button:disabled, input:disabled{opacity:.6}
 </style>
 </head>
 <body>
   <div id="msg">Well done!</div>
 
-  <h1 id="timer">0:00</h1>
+  <!-- Ряд: минус — таймер — плюс -->
+  <div class="row">
+    <button id="minus" class="btn-outline">−</button>
+    <h1 id="timer">30</h1>
+    <button id="plus" class="btn-outline">+</button>
+  </div>
 
   <div class="controls">
-    <input id="secs" type="number" min="10" step="5" value="60">
-    <button id="start">Start</button>
+    <input id="secs" type="number" min="10" step="5" value="30">
+    <button id="start" class="solid">Start</button>
   </div>
 
   <div id="status" class="hint"></div>
 
 <script>
-/* ---------- ЗВУК: один общий AudioContext для iOS ---------- */
-let ac = null;
-function ensureAudio() {
+/* ---------- звук: общий AudioContext для iOS ---------- */
+let ac=null;
+function ensureAudio(){
   try{
-    const AC = window.AudioContext || window.webkitAudioContext;
-    if (!ac) ac = new AC();
-    if (ac.state === 'suspended') ac.resume();
-  }catch(e){ /* без звука будет ок */ }
+    const AC=window.AudioContext||window.webkitAudioContext;
+    if(!ac) ac=new AC();
+    if(ac.state==='suspended') ac.resume();
+  }catch(e){}
 }
-function beep(ms=150, f=880, vol=0.06){
-  if (!ac) return;
-  const o = ac.createOscillator();
-  const g = ac.createGain();
-  o.type = 'sine';
-  o.frequency.value = f;
-  g.gain.value = vol;
+function beep(ms=150,f=880,vol=0.06){
+  if(!ac) return;
+  const o=ac.createOscillator(), g=ac.createGain();
+  o.type='sine'; o.frequency.value=f; g.gain.value=vol;
   o.connect(g); g.connect(ac.destination);
-  const t0 = ac.currentTime;
-  o.start(t0);
-  o.stop(t0 + ms/1000);
-  setTimeout(()=>{ o.disconnect(); g.disconnect(); }, ms+50);
+  const t0=ac.currentTime; o.start(t0); o.stop(t0+ms/1000);
+  setTimeout(()=>{o.disconnect();g.disconnect();},ms+50);
 }
 
-/* ---------- ЛОГИКА ТАЙМЕРА ---------- */
+/* ---------- элементы ---------- */
 const t = document.getElementById('timer');
 const s = document.getElementById('status');
 const msg = document.getElementById('msg');
 const inp = document.getElementById('secs');
 const startBtn = document.getElementById('start');
+const minusBtn = document.getElementById('minus');
+const plusBtn  = document.getElementById('plus');
 
-let running = false, int = null;
+let running=false, int=null;
 
-function fmt(n){
-  n = Math.max(0,n);
-  const m = Math.floor(n/60);
-  const ss = (n%60).toString().padStart(2,'0');
-  return `${m}:${ss}`;
+/* синхронизация экрана и инпута */
+function setSeconds(v){
+  v=Math.max(10, v|0);
+  inp.value=v;
+  t.textContent=String(v);   // показываем просто число секунд
 }
+setSeconds(parseInt(inp.value,10)||30);
 
-startBtn.onclick = () => {
-  if (running) return;
-  ensureAudio();          // «разлочить» аудио на iOS
-  let total = parseInt(inp.value,10) || 60;
-  if (total < 10) total = 10;
+/* +/- меняют длительность планки, когда таймер НЕ идёт */
+minusBtn.onclick=()=>{ if(!running) setSeconds(parseInt(inp.value,10)-10); };
+plusBtn.onclick =()=>{ if(!running) setSeconds(parseInt(inp.value,10)+10); };
+
+inp.oninput=()=>{ if(!running) setSeconds(parseInt(inp.value,10)||30); };
+
+startBtn.onclick=()=>{
+  if(running) return;
+  ensureAudio();
+  let total=parseInt(inp.value,10)||30;
+  if(total<10) total=10;
   run(total);
 };
 
 function run(total){
-  running = true;
+  running=true;
+  toggleControls(true);
   msg.classList.remove('show');
-  s.textContent = 'Hold';
-  let left = total, tick = 0;
+  s.textContent='Hold';
+  setSeconds(total);
+  beep(180,880); // стартовый
+  let left=total, tick=0;
 
-  t.textContent = fmt(left);
-  beep(180,880); // начальный «бип»
-
-  int = setInterval(()=>{
+  int=setInterval(()=>{
     left--; tick++;
-    t.textContent = fmt(left);
-
-    if (left <= 0) {
+    t.textContent=String(Math.max(0,left));
+    if(left<=0){
       clearInterval(int);
       finish();
       return;
     }
-    if (tick % 10 === 0) beep(150, 1200); // каждые 10 секунд
-  }, 1000);
+    if(tick%10===0) beep(150,1200); // каждые 10 сек
+  },1000);
 }
 
 function finish(){
-  // финальная тройка сигналов
+  // три финальных сигнала
   beep(200,880);
-  setTimeout(()=>beep(200,880), 250);
-  setTimeout(()=>beep(300,660), 500);
+  setTimeout(()=>beep(200,880),250);
+  setTimeout(()=>beep(300,660),500);
 
-  t.textContent = '0:00';
-  s.textContent = '';
-  msg.textContent = 'Well done!';
+  s.textContent='';
+  msg.textContent='Well done!';
   msg.classList.add('show');
-  running = false;
+  running=false;
+  toggleControls(false);
+}
+
+function toggleControls(disabled){
+  inp.disabled=disabled;
+  minusBtn.disabled=disabled;
+  plusBtn.disabled=disabled;
 }
 </script>
 </body>
